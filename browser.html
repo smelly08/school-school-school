@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloudflare Pages Proxy Browser</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Arial; display:flex; flex-direction:column; height:100vh; background:#121212; color:white; }
+  header { display:flex; padding:6px; gap:5px; background:#1f1f1f; align-items:center; }
+  input { flex:1; padding:6px; border-radius:4px; border:none; background:#2c2c2c; color:white; }
+  button { padding:6px 10px; border:none; border-radius:4px; background:#0078ff; color:white; cursor:pointer; }
+  #tabs { display:flex; overflow-x:auto; background:#1b1b1b; padding:5px; }
+  .tab { padding:5px 10px; margin-right:5px; background:#2b2b2b; border-radius:4px; cursor:pointer; white-space:nowrap; }
+  .tab.active { background:#0078ff; }
+  #viewer { flex:1; overflow:auto; background:white; color:black; padding:10px; }
+</style>
+</head>
+<body>
+
+<div id="tabs"></div>
+
+<header>
+  <button onclick="goBack()">⏪</button>
+  <button onclick="goForward()">⏩</button>
+  <button onclick="refreshTab()">🔄</button>
+  <input id="urlInput" placeholder="Enter URL and press Enter" onkeydown="if(event.key==='Enter') loadPage()">
+  <button onclick="loadPage()">Go</button>
+  <button onclick="addTab()">➕</button>
+</header>
+
+<div id="viewer">Welcome! Add a tab to start browsing.</div>
+
+<script>
+const proxy = 'https://raspy-darkness-1ab8.epjack2.workers.dev/?url=';
+const viewer = document.getElementById('viewer');
+const urlInput = document.getElementById('urlInput');
+const tabsDiv = document.getElementById('tabs');
+
+let tabs = [];
+let currentTab = null;
+
+function normalizeUrl(url) {
+  if (!url.startsWith('http')) return 'https://' + url;
+  return url;
+}
+
+function addTab(url='https://example.com') {
+  const tab = {id: Date.now(), url, history:[url], position:0};
+  tabs.push(tab);
+  setActiveTab(tab.id);
+  renderTabs();
+  loadTab(tab);
+}
+
+function setActiveTab(id) {
+  currentTab = tabs.find(t => t.id === id);
+  renderTabs();
+  if(currentTab) loadTab(currentTab);
+}
+
+function renderTabs() {
+  tabsDiv.innerHTML = '';
+  tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (tab.id===currentTab?.id?' active':'');
+    el.innerText = tab.url.replace(/^https?:\/\//,'');
+    el.onclick = () => setActiveTab(tab.id);
+    tabsDiv.appendChild(el);
+  });
+}
+
+async function loadPage() {
+  if(!currentTab) return;
+  const url = normalizeUrl(urlInput.value);
+  currentTab.url = url;
+  currentTab.history.push(url);
+  currentTab.position = currentTab.history.length-1;
+  loadTab(currentTab);
+  renderTabs();
+}
+
+async function loadTab(tab) {
+  urlInput.value = tab.url;
+  viewer.innerHTML = 'Loading...';
+  try {
+    const res = await fetch(proxy + encodeURIComponent(tab.url));
+    let html = await res.text();
+
+    // Strip scripts to prevent issues
+    html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+
+    // Rewrite links to stay in mini-browser
+    html = html.replace(/href="(http[s]?:\/\/[^"]+)"/gi, 'href="#" onclick="loadExternal(\'$1\')"');
+
+    viewer.innerHTML = html;
+  } catch(e) {
+    viewer.innerHTML = '<b>Error loading page:</b> ' + e.message;
+  }
+}
+
+function loadExternal(url){
+  urlInput.value = url;
+  loadPage();
+}
+
+function goBack() {
+  if(!currentTab || currentTab.position<=0) return;
+  currentTab.position--;
+  currentTab.url = currentTab.history[currentTab.position];
+  loadTab(currentTab);
+}
+
+function goForward() {
+  if(!currentTab || currentTab.position>=currentTab.history.length-1) return;
+  currentTab.position++;
+  currentTab.url = currentTab.history[currentTab.position];
+  loadTab(currentTab);
+}
+
+function refreshTab() {
+  if(currentTab) loadTab(currentTab);
+}
+
+// Start with one default tab
+addTab('https://example.com');
+</script>
+
+</body>
+</html>
