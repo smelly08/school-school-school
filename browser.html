@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cloudflare Pages Proxy Browser</title>
+<title>Proxy Browser with iFrame</title>
 <style>
   * { box-sizing: border-box; }
   body { margin:0; font-family: Arial; display:flex; flex-direction:column; height:100vh; background:#121212; color:white; }
@@ -13,7 +13,7 @@
   #tabs { display:flex; overflow-x:auto; background:#1b1b1b; padding:5px; }
   .tab { padding:5px 10px; margin-right:5px; background:#2b2b2b; border-radius:4px; cursor:pointer; white-space:nowrap; }
   .tab.active { background:#0078ff; }
-  #viewer { flex:1; overflow:auto; background:white; color:black; padding:10px; }
+  iframe { flex:1; width:100%; border:none; }
 </style>
 </head>
 <body>
@@ -29,11 +29,11 @@
   <button onclick="addTab()">➕</button>
 </header>
 
-<div id="viewer">Welcome! Add a tab to start browsing.</div>
+<iframe id="viewer"></iframe>
 
 <script>
 const proxy = 'https://raspy-darkness-1ab8.epjack2.workers.dev/?url=';
-const viewer = document.getElementById('viewer');
+const iframe = document.getElementById('viewer');
 const urlInput = document.getElementById('urlInput');
 const tabsDiv = document.getElementById('tabs');
 
@@ -70,7 +70,7 @@ function renderTabs() {
   });
 }
 
-async function loadPage() {
+function loadPage() {
   if(!currentTab) return;
   const url = normalizeUrl(urlInput.value);
   currentTab.url = url;
@@ -80,28 +80,9 @@ async function loadPage() {
   renderTabs();
 }
 
-async function loadTab(tab) {
+function loadTab(tab) {
   urlInput.value = tab.url;
-  viewer.innerHTML = 'Loading...';
-  try {
-    const res = await fetch(proxy + encodeURIComponent(tab.url));
-    let html = await res.text();
-
-    // Strip scripts to prevent issues
-    html = html.replace(/<script[\s\S]*?<\/script>/gi, '');
-
-    // Rewrite links to stay in mini-browser
-    html = html.replace(/href="(http[s]?:\/\/[^"]+)"/gi, 'href="#" onclick="loadExternal(\'$1\')"');
-
-    viewer.innerHTML = html;
-  } catch(e) {
-    viewer.innerHTML = '<b>Error loading page:</b> ' + e.message;
-  }
-}
-
-function loadExternal(url){
-  urlInput.value = url;
-  loadPage();
+  iframe.src = proxy + encodeURIComponent(tab.url);
 }
 
 function goBack() {
@@ -122,7 +103,7 @@ function refreshTab() {
   if(currentTab) loadTab(currentTab);
 }
 
-// Start with one default tab
+// start with one default tab
 addTab('https://example.com');
 </script>
 
